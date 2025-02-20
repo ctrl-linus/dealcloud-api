@@ -1,16 +1,29 @@
 import requests
 import os
 from datetime import datetime, timedelta, timezone
+import logging.handlers
 
 # System variables
 DEALCLOUD_SITE = os.getenv("DEALCLOUD_SITE")
 API_CLIENT_ID = os.getenv("DEALCLOUD_CLIENT_ID")
 API_CLIENT_SECRET = os.getenv("DEALCLOUD_CLIENT_SECRET")
 
-# API Endpoints
 API_ENDPOINT_TOKEN = "/api/rest/v1/oauth/token"
 API_ENDPOINT_USER_ACTIVITY = "/api/rest/v1/management/user/activity"
 
+LOG_OUTPUT_DIR = "./logs/"
+SYSLOG_SERVER = "127.0.0.1"
+SYSLOG_PORT = 1234
+
+# Set up syslog output
+syslog_handler = logging.handlers.SysLogHandler(address=(SYSLOG_SERVER, SYSLOG_PORT))
+syslog_formatter = logging.Formatter('%(message)s')
+syslog_handler.setFormatter(syslog_formatter)
+syslogger = logging.getLogger(__name__)
+syslogger = logging.getLogger('SysLogger')
+
+
+# Set up HTTP request session
 session = requests.Session()
 
 
@@ -45,28 +58,28 @@ def get_token():
 
 
 def get_user_activity(
-    _token: str, 
-    _user_ids: list[int] = None, 
-    _date_from: str = None,
-    _date_to: str = None,
-    _activity: int = None, 
-    _source: int = None,
-    _export_data_type: int = None,
-    _page_number: int = None,
-    _page_size: int = None
+    token: str, 
+    user_ids: list[int] = None, 
+    date_from: str = None,
+    date_to: str = None,
+    activity: int = None, 
+    source: int = None,
+    export_data_type: int = None,
+    page_number: int = None,
+    page_size: int = None
 ) -> dict:
     """Fetch user activity from the API.
 
     Args:
-        _token (str): Bearer token from `get_token()`.
-        _user_ids (list[int], optional): List of user IDs to filter by. Defaults to None.
-        _date_from (str, optional): Start date (max 90 days ago). Defaults to None.
-        _date_to (str, optional): End date (at least 1 day after `_date_from`). Defaults to None.
-        _activity (int, optional): Activity type filter. Defaults to None.
-        _source (int, optional): Source type filter. Defaults to None.
-        _export_data_type (int, optional): Filter for export data (requires `_activity=8`). Defaults to None.
-        _page_number (int, optional): Page number (default 1). Defaults to 1.
-        _page_size (int, optional): Number of records per page (default 10). Defaults to 10.
+        token (str): Bearer token from `get_token()`.
+        user_ids (list[int], optional): List of user IDs to filter by. Defaults to None.
+        date_from (str, optional): Start date (max 90 days ago). Defaults to None.
+        date_to (str, optional): End date (at least 1 day after `date_from`). Defaults to None.
+        activity (int, optional): Activity type filter. Defaults to None.
+        source (int, optional): Source type filter. Defaults to None.
+        export_data_type (int, optional): Filter for export data (requires `activity=8`). Defaults to None.
+        page_number (int, optional): Page number (default 1). Defaults to 1.
+        page_size (int, optional): Number of records per page (default 10). Defaults to 10.
 
     Returns:
         dict: API response as a JSON dictionary.
@@ -76,16 +89,16 @@ def get_user_activity(
     """
     
     # Construct payload and parameters
-    _data_json = build_data_json(_user_ids, _date_from, _date_to, _activity, _source, _export_data_type)
-    _params_json = build_param_json(_page_number, _page_size)
+    data_json = build_data_json(user_ids, date_from, date_to, activity, source, export_data_type)
+    params_json = build_param_json(page_number, page_size)
 
     response = requests.post(
         f"https://{DEALCLOUD_SITE}{API_ENDPOINT_USER_ACTIVITY}",
-        json=_data_json, 
-        params=_params_json,
+        json=data_json, 
+        params=params_json,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {_token}"
+            "Authorization": f"Bearer {token}"
         }
     )
 
@@ -96,55 +109,62 @@ def get_user_activity(
 
 
 def build_data_json(
-    _user_ids: list[int] = None,
-    _date_from: str = None,
-    _date_to: str = None,
-    _activity: int = None,
-    _source: int = None,
-    _export_data_type: int = None
+    user_ids: list[int] = None,
+    date_from: str = None,
+    date_to: str = None,
+    activity: int = None,
+    source: int = None,
+    export_data_type: int = None
 ) -> dict:
     """Builds JSON payload for API request.
 
     Returns:
         dict: JSON payload with only relevant parameters.
     """
-    _data = {}
-    if _user_ids: _data["userIds"] = _user_ids
-    if _date_from: _data["dateFrom"] = _date_from
-    if _date_to: _data["dateTo"] = _date_to
-    if _activity: _data["activity"] = _activity
-    if _source: _data["source"] = _source
-    if _activity == 8 and _export_data_type: 
-        _data["exportDataType"] = _export_data_type
+    data = {}
+    if user_ids: data["userIds"] = user_ids
+    if date_from: data["dateFrom"] = date_from
+    if date_to: data["dateTo"] = date_to
+    if activity: data["activity"] = activity
+    if source: data["source"] = source
+    if activity == 8 and export_data_type: 
+        data["exportDataType"] = export_data_type
 
-    return _data
+    return data
 
 
-def build_param_json(_page_number: int, _page_size: int) -> dict:
+def build_param_json(page_number: int, page_size: int) -> dict:
     """Builds query parameters for API request.
 
     Returns:
         dict: Query parameters.
     """
-    _params = {}
-    if _page_number: _params["pageNumber"] = _page_number
-    if _page_size: _params["pageSize"] = _page_size
-    return _params
+    params = {}
+    if page_number: params["pageNumber"] = page_number
+    if page_size: params["pageSize"] = page_size
+    return params
 
 
-def calculate_time_days_ago(_days: int) -> str:
-    """Calculates the timestamp for `_days` ago in ISO format (UTC).
+def calculate_time_days_ago(days: int) -> str:
+    """Calculates the timestamp for `days` ago in ISO format .
 
     Args:
-        _days (int): Number of days in the past.
+        days (int): Number of days in the past.
 
     Returns:
         str: ISO 8601 timestamp with 'Z' suffix.
     """
-    time_result = datetime.now(timezone.utc) - timedelta(days=_days)
+    time_result = datetime.now() - timedelta(days=days)
     return time_result.isoformat()
+
+
+def output_log_file(data):
+    """Saves log data to a local file."""
+    with open(f"{LOG_OUTPUT_DIR}/output.txt", "a") as log_file:
+        for log in data:
+            log_file.write(str(log) + "\n")
 
 
 token = get_token()
 user_activity = get_user_activity(token)
-print(user_activity)
+output_log_file(user_activity)
