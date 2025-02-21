@@ -11,7 +11,10 @@ API_CLIENT_SECRET = os.getenv("DEALCLOUD_CLIENT_SECRET")
 API_ENDPOINT_TOKEN = "/api/rest/v1/oauth/token"
 API_ENDPOINT_USER_ACTIVITY = "/api/rest/v1/management/user/activity"
 
-LOG_OUTPUT_DIR = "./logs/"
+LOG_FILE_OUTPUT_ENABLED = False
+LOG_FILE_OUTPUT_DIR = "./logs/"
+
+SYSLOG_OUTPUT_ENABLED = False
 SYSLOG_SERVER = "127.0.0.1"
 SYSLOG_PORT = 1234
 
@@ -78,8 +81,8 @@ def get_user_activity(
         activity (int, optional): Activity type filter. Defaults to None.
         source (int, optional): Source type filter. Defaults to None.
         export_data_type (int, optional): Filter for export data (requires `activity=8`). Defaults to None.
-        page_number (int, optional): Page number (default 1). Defaults to 1.
-        page_size (int, optional): Number of records per page (default 10). Defaults to 10.
+        page_number (int, optional): Page number. Defaults to 1.
+        page_size (int, optional): Number of records per page. Defaults to 10.
 
     Returns:
         dict: API response as a JSON dictionary.
@@ -160,11 +163,14 @@ def calculate_time_days_ago(days: int) -> str:
 
 def output_log_file(data):
     """Saves log data to a local file."""
-    with open(f"{LOG_OUTPUT_DIR}/output.txt", "a") as log_file:
+    with open(f"{LOG_FILE_OUTPUT_DIR}/output.txt", "a") as log_file:
         for log in data:
             log_file.write(str(log) + "\n")
 
+def output_syslog(data):
+    pass
 
 token = get_token()
 user_activity = get_user_activity(token)
-output_log_file(user_activity)
+if SYSLOG_OUTPUT_ENABLED:
+    output_syslog(user_activity)
